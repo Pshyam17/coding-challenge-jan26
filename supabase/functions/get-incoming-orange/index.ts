@@ -96,10 +96,8 @@ ${matchSummary}
 Write a warm, concise message (3-4 sentences) to the orange about its matches. Be specific about why the top match is a good fit.`,
     })
 
-    if (relationIds[0]) {
-      await sql(
-        `UPDATE ${relationIds[0]} SET narrative = ${JSON.stringify(narrative)}`
-      )
+    for (const rid of relationIds) {
+      await sql(`UPDATE ${rid} SET narrative = ${JSON.stringify(narrative)}`)
     }
 
     return new Response(

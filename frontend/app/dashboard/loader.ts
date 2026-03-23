@@ -40,10 +40,17 @@ export interface ScoreDistribution {
   bucket: string
   count: number
 }
+export interface AttributeStat {
+  attribute: string
+  satisfactionRate: number
+  sampleSize: number
+}
+
 export interface DashboardData {
   metrics: MatchMetrics
   recentMatches: RecentMatch[]
   scoreDistribution: ScoreDistribution[]
+  attributeStats: AttributeStat[]
 }
 export async function getDashboardData(): Promise<DashboardData> {
   try {
@@ -82,7 +89,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     console.error("Dashboard loader error:", err)
     return {
       metrics: { totalApples: 0, totalOranges: 0, totalMatches: 0, avgMutualScore: 0, avgAppleScore: 0, avgOrangeScore: 0 },
-      recentMatches: [], scoreDistribution: [],
+      recentMatches: [], scoreDistribution: [], attributeStats: [],
     }
   }
 }
