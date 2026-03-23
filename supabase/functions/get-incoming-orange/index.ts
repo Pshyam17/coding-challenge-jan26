@@ -19,10 +19,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const apiKey = Deno.env.get("OPENAI_API_KEY")
+    const apiKey = Deno.env.get("NVIDIA_API_KEY")
     if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: "OPENAI_API_KEY is not set" }),
+        JSON.stringify({ error: "NVIDIA_API_KEY is not set" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
       )
     }
@@ -91,10 +91,10 @@ Deno.serve(async (req) => {
       )
       .join("\n")
 
-    const openai = createOpenAI({ apiKey })
+    const openai = createOpenAI({ apiKey, baseURL: "https://integrate.api.nvidia.com/v1" })
 
     const { text: narrative } = await generateText({
-      model: openai("gpt-4o-mini"),
+      model: openai("meta/llama-3.1-70b-instruct"),
       prompt: `You are Clera, a fruit matchmaking agent. An orange just arrived and found matches.
 
 Orange says about itself: "${orangeAttrs}"

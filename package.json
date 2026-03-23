@@ -4,7 +4,7 @@
     "supabase": "supabase",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
-    "supabase:functions:serve": "supabase functions serve --no-verify-jwt",
+    "supabase:functions:serve": "supabase functions serve --no-verify-jwt --env-file supabase/functions/.env",
     "seed": "node --experimental-strip-types --experimental-vm-modules supabase/seed_surreal.ts",
     "db": "bash scripts/start-db.sh"
   },
