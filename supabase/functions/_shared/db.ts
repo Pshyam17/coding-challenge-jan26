@@ -8,25 +8,17 @@ const authHeader = "Basic " + btoa(`${SURREALDB_USER}:${SURREALDB_PASS}`)
 
 const baseHeaders = {
   "Authorization": authHeader,
-  "NS": SURREALDB_NS,
-  "DB": SURREALDB_DB,
+  "Surreal-NS": SURREALDB_NS,
+  "Surreal-DB": SURREALDB_DB,
   "Accept": "application/json",
   "Content-Type": "text/plain",
 }
 
-export async function sql<T = unknown>(query: string, vars?: Record<string, unknown>): Promise<T[]> {
-  let fullQuery = query
-
-  if (vars) {
-    for (const [key, value] of Object.entries(vars)) {
-      fullQuery = `LET $${key} = ${JSON.stringify(value)};\n` + fullQuery
-    }
-  }
-
+export async function sql<T = unknown>(query: string): Promise<T[]> {
   const res = await fetch(`${SURREALDB_URL}/sql`, {
     method: "POST",
     headers: baseHeaders,
-    body: fullQuery,
+    body: query,
   })
 
   if (!res.ok) {
@@ -35,8 +27,8 @@ export async function sql<T = unknown>(query: string, vars?: Record<string, unkn
   }
 
   const data = await res.json()
-
   const last = data[data.length - 1]
+
   if (last?.status === "ERR") {
     throw new Error(`SurrealDB query error: ${last.result}`)
   }

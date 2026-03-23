@@ -32,12 +32,7 @@ Deno.serve(async (req) => {
 
     const requestId = crypto.randomUUID()
     const inserted = await sql<{ id: string }>(
-      `INSERT INTO apple (attributes, preferences, request_id) VALUES ($attributes, $preferences, $requestId)`,
-      {
-        attributes: apple.attributes,
-        preferences: apple.preferences,
-        requestId: requestId,
-      }
+      `INSERT INTO apple (attributes, preferences, request_id) VALUES (${JSON.stringify(apple.attributes)}, ${JSON.stringify(apple.preferences)}, "${requestId}")`
     )
     const appleId = inserted[0]?.id
     if (!appleId) throw new Error("Failed to insert apple")
@@ -69,14 +64,7 @@ Deno.serve(async (req) => {
 
     for (const match of scored) {
       const relation = await sql<{ id: string }>(
-        `RELATE $apple->matched_to->$orange SET score = $score, apple_score = $appleScore, orange_score = $orangeScore`,
-        {
-          apple: match.orange.id,
-          orange: match.orange.id,
-          score: match.mutualScore,
-          appleScore: match.appleScore,
-          orangeScore: match.orangeScore,
-        }
+        `RELATE ${appleId}->matched_to->${match.orange.id} SET score = ${match.mutualScore}, apple_score = ${match.appleScore}, orange_score = ${match.orangeScore}`
       )
       if (relation[0]?.id) relationIds.push(relation[0].id)
     }
@@ -107,8 +95,7 @@ Write a warm, concise message (3-4 sentences) to the apple about its matches. Be
 
     if (relationIds[0]) {
       await sql(
-        `UPDATE $id SET narrative = $narrative`,
-        { id: relationIds[0], narrative }
+        `UPDATE ${relationIds[0]} SET narrative = ${JSON.stringify(narrative)}`
       )
     }
 

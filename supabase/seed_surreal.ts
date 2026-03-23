@@ -10,8 +10,8 @@ const authHeader = "Basic " + Buffer.from(`${SURREALDB_USER}:${SURREALDB_PASS}`)
 
 const headers = {
   "Authorization": authHeader,
-  "NS": SURREALDB_NS,
-  "DB": SURREALDB_DB,
+  "Surreal-NS": SURREALDB_NS,
+  "Surreal-DB": SURREALDB_DB,
   "Accept": "application/json",
   "Content-Type": "text/plain",
 }
