@@ -2,9 +2,9 @@ import "@supabase/functions-js/edge-runtime.d.ts"
 import { generateApple, communicateAttributes, communicatePreferences } from "../_shared/generateFruit.ts"
 import { getDb } from "../_shared/db.ts"
 import { scoreBidirectional } from "../_shared/scoring.ts"
-import { Table, RecordId } from "surrealdb"
-import { generateText } from "ai"
-import { createOpenAI } from "@ai-sdk/openai"
+import { Table, RecordId } from "npm:surrealdb@^1.0.0"
+import { generateText } from "npm:ai@^4.0.0"
+import { createOpenAI } from "npm:@ai-sdk/openai@^1.0.0"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
