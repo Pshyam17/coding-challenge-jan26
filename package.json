@@ -1,16 +1,17 @@
 {
-  "name": "coding-challenge-jan26",
-  "version": "0.1.0",
-  "private": true,
-  "description": "Matchmaking system - apples and oranges",
+  "type": "module",
   "scripts": {
     "supabase": "supabase",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
-    "supabase:functions:serve": "supabase functions serve"
+    "supabase:functions:serve": "supabase functions serve --no-verify-jwt",
+    "seed": "node --experimental-strip-types --experimental-vm-modules supabase/seed_surreal.ts",
+    "db": "bash scripts/start-db.sh"
   },
   "devDependencies": {
     "supabase": "^2.23.4"
+  },
+  "dependencies": {
+    "surrealdb": "^2.0.3"
   }
 }
-

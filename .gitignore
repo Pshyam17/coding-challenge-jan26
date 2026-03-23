@@ -47,3 +47,7 @@ coverage/
 *.log
 .vercel
 
+deno.json
+deno.lock
+seed-imports.json
+history.txt
