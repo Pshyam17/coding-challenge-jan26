@@ -1,8 +1,7 @@
 import "@supabase/functions-js/edge-runtime.d.ts"
 import { generateApple, communicateAttributes, communicatePreferences } from "../_shared/generateFruit.ts"
-import { getDb } from "../_shared/db.ts"
+import { sql } from "../_shared/db.ts"
 import { scoreBidirectional } from "../_shared/scoring.ts"
-import { Table, RecordId } from "npm:surrealdb@^1.0.0"
 import { generateText } from "npm:ai@^4.0.0"
 import { createOpenAI } from "npm:@ai-sdk/openai@^1.0.0"
 
@@ -19,10 +18,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const apiKey = Deno.env.get("OPENAI_API_KEY")
+    const apiKey = Deno.env.get("NVIDIA_API_KEY")
     if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: "OPENAI_API_KEY is not set" }),
+        JSON.stringify({ error: "NVIDIA_API_KEY is not set" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
       )
     }
@@ -31,20 +30,21 @@ Deno.serve(async (req) => {
     const appleAttrs = communicateAttributes(apple)
     const applePrefs = communicatePreferences(apple)
 
-    const db = await getDb()
+    const requestId = crypto.randomUUID()
+    const inserted = await sql<{ id: string }>(
+      `INSERT INTO apple (attributes, preferences, request_id) VALUES ($attributes, $preferences, $requestId)`,
+      {
+        attributes: apple.attributes,
+        preferences: apple.preferences,
+        requestId: requestId,
+      }
+    )
+    const appleId = inserted[0]?.id
+    if (!appleId) throw new Error("Failed to insert apple")
 
-    const inserted = await db.insert(new Table("apple"), {
-      attributes: apple.attributes,
-      preferences: apple.preferences,
-      request_id: crypto.randomUUID(),
-    })
-    const appleRecord = Array.isArray(inserted) ? inserted[0] : inserted
-    const appleId = appleRecord.id as RecordId
-
-    const oranges = await db.query<[{ id: RecordId; attributes: unknown; preferences: unknown }[]]>(
+    const orangePool = await sql<{ id: string; attributes: unknown; preferences: unknown }>(
       "SELECT * FROM orange"
     )
-    const orangePool = oranges[0] ?? []
 
     if (orangePool.length === 0) {
       return new Response(
@@ -65,21 +65,20 @@ Deno.serve(async (req) => {
       .sort((a, b) => b.mutualScore - a.mutualScore)
       .slice(0, TOP_K)
 
-    const relationIds: RecordId[] = []
+    const relationIds: string[] = []
 
     for (const match of scored) {
-      const relation = await db.query<[{ id: RecordId }[]]>(
+      const relation = await sql<{ id: string }>(
         `RELATE $apple->matched_to->$orange SET score = $score, apple_score = $appleScore, orange_score = $orangeScore`,
         {
-          apple: appleId,
+          apple: match.orange.id,
           orange: match.orange.id,
           score: match.mutualScore,
           appleScore: match.appleScore,
           orangeScore: match.orangeScore,
         }
       )
-      const rel = relation[0]?.[0]
-      if (rel) relationIds.push(rel.id)
+      if (relation[0]?.id) relationIds.push(relation[0].id)
     }
 
     const matchSummary = scored
@@ -88,10 +87,13 @@ Deno.serve(async (req) => {
       )
       .join("\n")
 
-    const openai = createOpenAI({ apiKey })
+    const openai = createOpenAI({
+      apiKey,
+      baseURL: "https://integrate.api.nvidia.com/v1",
+    })
 
     const { text: narrative } = await generateText({
-      model: openai("gpt-4o-mini"),
+      model: openai("meta/llama-3.1-70b-instruct"),
       prompt: `You are Clera, a fruit matchmaking agent. An apple just arrived and found matches.
 
 Apple says about itself: "${appleAttrs}"
@@ -104,7 +106,7 @@ Write a warm, concise message (3-4 sentences) to the apple about its matches. Be
     })
 
     if (relationIds[0]) {
-      await db.query(
+      await sql(
         `UPDATE $id SET narrative = $narrative`,
         { id: relationIds[0], narrative }
       )
@@ -115,7 +117,7 @@ Write a warm, concise message (3-4 sentences) to the apple about its matches. Be
         apple: { attributes: apple.attributes, preferences: apple.preferences },
         communication: { attributes: appleAttrs, preferences: applePrefs },
         matches: scored.map((m) => ({
-          orangeId: String(m.orange.id),
+          orangeId: m.orange.id,
           mutualScore: m.mutualScore,
           appleScore: m.appleScore,
           orangeScore: m.orangeScore,
