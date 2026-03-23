@@ -1,8 +1,7 @@
 import "@supabase/functions-js/edge-runtime.d.ts"
 import { generateOrange, communicateAttributes, communicatePreferences } from "../_shared/generateFruit.ts"
-import { getDb } from "../_shared/db.ts"
+import { sql } from "../_shared/db.ts"
 import { scoreBidirectional } from "../_shared/scoring.ts"
-import { Table, RecordId } from "npm:surrealdb@^1.0.0"
 import { generateText } from "npm:ai@^4.0.0"
 import { createOpenAI } from "npm:@ai-sdk/openai@^1.0.0"
 
@@ -31,20 +30,16 @@ Deno.serve(async (req) => {
     const orangeAttrs = communicateAttributes(orange)
     const orangePrefs = communicatePreferences(orange)
 
-    const db = await getDb()
+    const requestId = crypto.randomUUID()
+    const inserted = await sql<{ id: string }>(
+      `INSERT INTO orange (attributes, preferences, request_id) VALUES (${JSON.stringify(orange.attributes)}, ${JSON.stringify(orange.preferences)}, "${requestId}")`
+    )
+    const orangeId = inserted[0]?.id
+    if (!orangeId) throw new Error("Failed to insert orange")
 
-    const inserted = await db.insert(new Table("orange"), {
-      attributes: orange.attributes,
-      preferences: orange.preferences,
-      request_id: crypto.randomUUID(),
-    })
-    const orangeRecord = Array.isArray(inserted) ? inserted[0] : inserted
-    const orangeId = orangeRecord.id as RecordId
-
-    const apples = await db.query<[{ id: RecordId; attributes: unknown; preferences: unknown }[]]>(
+    const applePool = await sql<{ id: string; attributes: unknown; preferences: unknown }>(
       "SELECT * FROM apple"
     )
-    const applePool = apples[0] ?? []
 
     if (applePool.length === 0) {
       return new Response(
@@ -68,21 +63,13 @@ Deno.serve(async (req) => {
       .sort((a, b) => b.mutualScore - a.mutualScore)
       .slice(0, TOP_K)
 
-    const relationIds: RecordId[] = []
+    const relationIds: string[] = []
 
     for (const match of scored) {
-      const relation = await db.query<[{ id: RecordId }[]]>(
-        `RELATE $apple->matched_to->$orange SET score = $score, apple_score = $appleScore, orange_score = $orangeScore`,
-        {
-          apple: match.apple.id,
-          orange: orangeId,
-          score: match.mutualScore,
-          appleScore: match.appleScore,
-          orangeScore: match.orangeScore,
-        }
+      const relation = await sql<{ id: string }>(
+        `RELATE ${match.apple.id}->matched_to->${orangeId} SET score = ${match.mutualScore}, apple_score = ${match.appleScore}, orange_score = ${match.orangeScore}`
       )
-      const rel = relation[0]?.[0]
-      if (rel) relationIds.push(rel.id)
+      if (relation[0]?.id) relationIds.push(relation[0].id)
     }
 
     const matchSummary = scored
@@ -91,7 +78,10 @@ Deno.serve(async (req) => {
       )
       .join("\n")
 
-    const openai = createOpenAI({ apiKey, baseURL: "https://integrate.api.nvidia.com/v1" })
+    const openai = createOpenAI({
+      apiKey,
+      baseURL: "https://integrate.api.nvidia.com/v1",
+    })
 
     const { text: narrative } = await generateText({
       model: openai("meta/llama-3.1-70b-instruct"),
@@ -107,9 +97,8 @@ Write a warm, concise message (3-4 sentences) to the orange about its matches. B
     })
 
     if (relationIds[0]) {
-      await db.query(
-        `UPDATE $id SET narrative = $narrative`,
-        { id: relationIds[0], narrative }
+      await sql(
+        `UPDATE ${relationIds[0]} SET narrative = ${JSON.stringify(narrative)}`
       )
     }
 
@@ -118,7 +107,7 @@ Write a warm, concise message (3-4 sentences) to the orange about its matches. B
         orange: { attributes: orange.attributes, preferences: orange.preferences },
         communication: { attributes: orangeAttrs, preferences: orangePrefs },
         matches: scored.map((m) => ({
-          appleId: String(m.apple.id),
+          appleId: m.apple.id,
           mutualScore: m.mutualScore,
           appleScore: m.appleScore,
           orangeScore: m.orangeScore,
