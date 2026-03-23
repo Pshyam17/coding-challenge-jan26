@@ -2,7 +2,7 @@
 set -e
 
 echo "Starting SurrealDB..."
-surreal start --user root --pass root memory &
+surreal start --user root --pass root --bind 0.0.0.0:8000 memory &
 
 echo "Waiting for SurrealDB..."
 sleep 2
