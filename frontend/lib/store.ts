@@ -1,38 +1,5 @@
 import { create } from "zustand";
-import { devtools, persist } from "zustand/middleware";
-
-// =============================================================================
-// ⚠️  DISCLAIMER
-// =============================================================================
-// This store structure is just a STARTING POINT. Feel free to:
-// - Completely redesign the state shape
-// - Remove types/fields that don't fit your solution
-// - Add your own types and actions
-// - Use a different state management approach entirely
-//
-// The types below are examples based on what we imagined - your implementation
-// may look completely different, and that's great!
-// =============================================================================
-
-// =============================================================================
-// TYPES (Examples - modify or replace these!)
-// =============================================================================
-
-export interface Apple {
-  id: string;
-  name: string;
-  attributes: Record<string, unknown>;
-  preferences: Record<string, unknown>;
-  createdAt: Date;
-}
-
-export interface Orange {
-  id: string;
-  name: string;
-  attributes: Record<string, unknown>;
-  preferences: Record<string, unknown>;
-  createdAt: Date;
-}
+import { devtools, persist, createJSONStorage } from "zustand/middleware";
 
 export interface Match {
   id: string;
@@ -40,114 +7,79 @@ export interface Match {
   orangeId: string;
   score: number;
   status: "pending" | "confirmed" | "rejected";
-  createdAt: Date;
-}
-
-export interface Conversation {
-  id: string;
-  type: "apple" | "orange";
-  fruitId: string;
-  messages: ConversationMessage[];
-  status: "active" | "completed" | "error";
-  createdAt: Date;
+  createdAt: string;
 }
 
 export interface ConversationMessage {
   id: string;
   role: "system" | "user" | "assistant";
   content: string;
-  timestamp: Date;
+  timestamp: string;
 }
 
-// =============================================================================
-// STORE STATE
-// =============================================================================
+export interface Conversation {
+  id: string;
+  type: "apple" | "orange";
+  messages: ConversationMessage[];
+  status: "active" | "completed" | "error";
+  createdAt: string;
+}
 
 interface MatchmakingState {
-  // Data
-  apples: Apple[];
-  oranges: Orange[];
   matches: Match[];
   conversations: Conversation[];
-
-  // UI State
   activeConversationId: string | null;
   isLoading: boolean;
   error: string | null;
-
-  // Actions
-  setApples: (apples: Apple[]) => void;
-  setOranges: (oranges: Orange[]) => void;
   addMatch: (match: Match) => void;
   setActiveConversation: (id: string | null) => void;
   addConversation: (conversation: Conversation) => void;
-  addMessageToConversation: (
-    conversationId: string,
-    message: ConversationMessage
-  ) => void;
-  setLoading: (isLoading: boolean) => void;
-  setError: (error: string | null) => void;
+  addMessageToConversation: (id: string, msg: ConversationMessage) => void;
+  setLoading: (loading: boolean) => void;
+  setError: (err: string | null) => void;
   reset: () => void;
 }
 
-// =============================================================================
-// INITIAL STATE
-// =============================================================================
-
-const initialState = {
-  apples: [],
-  oranges: [],
-  matches: [],
-  conversations: [],
-  activeConversationId: null,
-  isLoading: false,
-  error: null,
-};
-
-// =============================================================================
-// STORE
-// =============================================================================
-
+// Ensure the type is passed to create<MatchmakingState>()
 export const useMatchmakingStore = create<MatchmakingState>()(
   devtools(
     persist(
       (set) => ({
-        ...initialState,
+        matches: [],
+        conversations: [],
+        activeConversationId: null,
+        isLoading: false,
+        error: null,
 
-        setApples: (apples) => set({ apples }),
-
-        setOranges: (oranges) => set({ oranges }),
-
-        addMatch: (match) =>
+        addMatch: (match: Match) =>
           set((state) => ({
-            matches: [...state.matches, match],
+            matches: [match, ...state.matches].slice(0, 100),
           })),
 
-        setActiveConversation: (id) => set({ activeConversationId: id }),
+        setActiveConversation: (id: string | null) => set({ activeConversationId: id }),
 
-        addConversation: (conversation) =>
+        addConversation: (conv: Conversation) =>
           set((state) => ({
-            conversations: [...state.conversations, conversation],
+            conversations: [conv, ...state.conversations],
           })),
 
-        addMessageToConversation: (conversationId, message) =>
+        addMessageToConversation: (id: string, message: ConversationMessage) =>
           set((state) => ({
-            conversations: state.conversations.map((conv) =>
-              conv.id === conversationId
-                ? { ...conv, messages: [...conv.messages, message] }
-                : conv
+            conversations: state.conversations.map((c) =>
+              c.id === id ? { ...c, messages: [...c.messages, message] } : c
             ),
           })),
 
-        setLoading: (isLoading) => set({ isLoading }),
-
-        setError: (error) => set({ error }),
-
-        reset: () => set(initialState),
+        setLoading: (isLoading: boolean) => set({ isLoading }),
+        setError: (error: string | null) => set({ error }),
+        reset: () => {
+          localStorage.removeItem('matchmaking-storage');
+          set({ matches: [], conversations: [], activeConversationId: null });
+        },
       }),
       {
         name: "matchmaking-storage",
-        // Only persist specific fields
+        storage: createJSONStorage(() => localStorage),
         partialize: (state) => ({
           conversations: state.conversations,
           matches: state.matches,
@@ -157,22 +89,3 @@ export const useMatchmakingStore = create<MatchmakingState>()(
     { name: "MatchmakingStore" }
   )
 );
-
-// =============================================================================
-// SELECTORS
-// =============================================================================
-
-// Example selectors for computed values
-export const selectActiveConversation = (state: MatchmakingState) =>
-  state.conversations.find((c) => c.id === state.activeConversationId);
-
-export const selectMatchCount = (state: MatchmakingState) =>
-  state.matches.length;
-
-export const selectSuccessRate = (state: MatchmakingState) => {
-  const confirmed = state.matches.filter((m) => m.status === "confirmed").length;
-  return state.matches.length > 0
-    ? Math.round((confirmed / state.matches.length) * 100)
-    : 0;
-};
-
